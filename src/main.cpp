@@ -8,14 +8,14 @@
 //#define TTGO_t3_v1_6 1
 // #define BARVINOK_TX 1
 // #define RADIOMATER_BANDIT 1
-#define ES900TX 1
+// #define ES900TX 1
 // #define BETAFPV_MICRO 1
 // #define ELRS_RX 1
 // #define BETAFPV_TX_400 1
-
+#define RX_2_4
 
 // #define CW_FROM_STARTUP 1
-float default_freq = 750;
+float default_freq = 2410;
 float default_pwr = 2;
 
 #if defined(TTGO_V2) || defined(TTGO_t3_v1_6) 
@@ -138,6 +138,20 @@ const bool radio_rfo_hf = false;
 
 #define FAN_EN_PIN 27
 
+#elif defined(RX_2_4)
+
+#define LORA_CS     27
+#define LORA_IRQ    36
+#define LORA_RST    26
+
+#define LORA_SCK    25
+#define LORA_MISO   33
+#define LORA_MOSI   32
+
+#define LED_BUILTIN 22
+
+const bool radio_rfo_hf = false;
+
 #endif
 
 #include "cli.h"
@@ -169,7 +183,7 @@ CLICommand_t l_cli_commands[CLI_COMMAND_COUNT] =
     CLI_ENTRY(a),
 };
 
-SX1276 radio = new Module(LORA_CS, LORA_IRQ, LORA_RST);
+SX128x radio(new Module({LORA_CS, LORA_IRQ, LORA_RST}));
 
 //SX1276 radio_2 = new Module(LORA_CS_2, LORA_IRQ_2, LORA_RST_2);
 
@@ -186,7 +200,7 @@ void initLoRa() {
     pinMode(RADIO_TCXO_ENABLE, OUTPUT);
     digitalWrite(RADIO_TCXO_ENABLE, HIGH);
 #endif
-    int state = radio.beginFSK();
+    int state = radio.beginGFSK();
     if (state == RADIOLIB_ERR_NONE) {
         Serial.println(F("success!"));
     } else {
@@ -203,7 +217,7 @@ void initLoRa() {
     // the following settings can also
     // be modified at run-time
     state = radio.setFrequency(default_freq);
-    state = radio.setOutputPower(default_pwr, radio_rfo_hf);
+    state = radio.setOutputPower(default_pwr);
 
     // state = radio.transmitDirect();
     // if (state != RADIOLIB_ERR_NONE) {
@@ -235,6 +249,7 @@ void setup() {
     pinMode(LED_BUILTIN, OUTPUT);
 
     initLoRa();
+    Serial.println("LoRa init done");
 
     l_cli_cnf.buf = l_cli_buf;
     l_cli_cnf.bufc = CLI_BUFFER_SIZE;
@@ -244,28 +259,12 @@ void setup() {
 
     CLIInit(&l_cli_inst, l_cli_cnf);
 
-
-    #if defined(TX_EN_PIN)
-        pinMode(TX_EN_PIN, OUTPUT);
-        digitalWrite(TX_EN_PIN, HIGH);
-    #endif
-
-    #if defined(FAN_EN_PIN)
-        pinMode(FAN_EN_PIN, OUTPUT);
-        digitalWrite(FAN_EN_PIN, HIGH);
-    #endif
-
-    #if defined(PIN_RFamp_APC2)
-        dacWrite(PIN_RFamp_APC2, 30);
-    #endif
-
 }
 
 void loop() {
     // Check if user typed something into the serial monitor
     while (Serial.available()) {
-        uint8_t a;
-        a = Serial.read();
+        uint8_t a = Serial.read();
        cliRxCallback(a);
     }
 
@@ -283,7 +282,7 @@ static CLIRet_t pCallback(void *args, CLI_ARG_COUNT_VALUE_T argc)
     if (buf) {
         int pwr = atoi((char*)buf);
 
-        int state = radio.setOutputPower(pwr, radio_rfo_hf);
+        int state = radio.setOutputPower(pwr);
         if (state != RADIOLIB_ERR_NONE) {
             Serial.println(F("Selected output power is invalid for this module!"));
             Serial.println(state);
